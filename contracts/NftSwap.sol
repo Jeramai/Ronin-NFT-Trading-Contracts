@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 contract NftSwap {
     enum TradeStatus {
         Proposed,
         Agreed,
         Confirmed,
-        Completed,
         Cancelled
     }
 
@@ -36,6 +35,49 @@ contract NftSwap {
     event TradeCompleted(uint256 tradeId);
     event TradeCancelled(uint256 tradeId);
     
+    function executeTrade(uint256 _tradeId) internal {
+        require(_tradeId < trades.length, "Trade does not exist");
+        Trade storage trade = trades[_tradeId];
+        
+        require(trade.status == TradeStatus.Confirmed, "Trade is not in confirmed state");
+        require(
+            msg.sender == trade.fromAddress || msg.sender == trade.toAddress,
+            "Not authorized to execute this trade"
+        );
+
+        // Get references to both NFT contracts
+        IERC721 fromNft = IERC721(trade.fromNftContract);
+        IERC721 toNft = IERC721(trade.toNftContract);
+
+        // Check if the contract has approval to transfer the NFTs
+        require(
+            fromNft.isApprovedForAll(trade.fromAddress, address(this)) ||
+            fromNft.getApproved(trade.fromNftId) == address(this),
+            "Contract not approved to transfer first NFT"
+        );
+        require(
+            toNft.isApprovedForAll(trade.toAddress, address(this)) ||
+            toNft.getApproved(trade.toNftId) == address(this),
+            "Contract not approved to transfer second NFT"
+        );
+
+        // Verify current ownership
+        require(
+            fromNft.ownerOf(trade.fromNftId) == trade.fromAddress,
+            "Sender no longer owns the offered NFT"
+        );
+        require(
+            toNft.ownerOf(trade.toNftId) == trade.toAddress,
+            "Receiver no longer owns the requested NFT"
+        );
+
+        // Execute the transfers
+        fromNft.transferFrom(trade.fromAddress, trade.toAddress, trade.fromNftId);
+        toNft.transferFrom(trade.toAddress, trade.fromAddress, trade.toNftId);
+        
+        emit TradeCompleted(_tradeId);
+    }
+
     function proposeTrade(
         address _fromNftContract,
         uint256 _fromNftId,
@@ -111,13 +153,17 @@ contract NftSwap {
             trade.toHasConfirmed = true;
         }
 
+        emit TradeConfirmed(_tradeId, msg.sender);
+
         // If both parties have confirmed, update status
         if (trade.fromHasConfirmed && trade.toHasConfirmed) {
             trade.status = TradeStatus.Confirmed;
-        }
 
-        emit TradeConfirmed(_tradeId, msg.sender);
+            // Execute the trade
+            executeTrade(_tradeId);
+        }
     }
+
 
     
     function getTrade(uint256 _tradeId) public view returns (Trade memory) {

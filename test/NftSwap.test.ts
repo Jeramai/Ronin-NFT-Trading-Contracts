@@ -9,7 +9,6 @@ enum TradeStatus {
   Proposed,
   Agreed,
   Confirmed,
-  Completed,
   Cancelled
 }
 type Trade = {
@@ -175,9 +174,15 @@ describe('NftSwap', function () {
     const agreeHash2 = await nftSwap.write.agreeTrade([0], { account: to.account });
     await publicClient.waitForTransactionReceipt({ hash: agreeHash2 });
 
+    // Do NFT approval
+    const approveHash1 = await nftContract.write.approve([getAddress(nftSwap.address), offeredNftId], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: approveHash1 });
+    const fromApproved = await nftContract.read.getApproved([offeredNftId]);
+    expect(fromApproved).to.equal(getAddress(nftSwap.address));
+
     // Have FROM side confirm
-    const confirmHash = await nftSwap.write.confirmTrade([0], { account: from.account });
-    await publicClient.waitForTransactionReceipt({ hash: confirmHash });
+    const confirmHash1 = await nftSwap.write.confirmTrade([0], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: confirmHash1 });
 
     let trade = (await nftSwap.read.getTrade([0])) as Trade;
     expect(trade.status).to.equal(TradeStatus.Agreed);
@@ -185,6 +190,12 @@ describe('NftSwap', function () {
     expect(trade.toHasAgreed).to.equal(true);
     expect(trade.fromHasConfirmed).to.equal(true);
     expect(trade.toHasConfirmed).to.equal(false);
+
+    // Do NFT approval
+    const approveHash2 = await nftContract.write.approve([getAddress(nftSwap.address), requestedNftId], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: approveHash2 });
+    const toApproved = await nftContract.read.getApproved([requestedNftId]);
+    expect(toApproved).to.equal(getAddress(nftSwap.address));
 
     // Have TO side confirm
     const confirmHash2 = await nftSwap.write.confirmTrade([0], { account: to.account });
@@ -196,5 +207,42 @@ describe('NftSwap', function () {
     expect(trade.toHasAgreed).to.equal(true);
     expect(trade.fromHasConfirmed).to.equal(true);
     expect(trade.toHasConfirmed).to.equal(true);
+  });
+  it('Should trade NFTs between users', async function () {
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+    const hash2 = await nftSwap.write.proposeTrade(
+      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+
+    await publicClient.waitForTransactionReceipt({ hash: hash2 });
+
+    // Agree
+    const agreeHash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHash });
+    const agreeHash2 = await nftSwap.write.agreeTrade([0], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHash2 });
+
+    // NFT approval
+    const approveHash1 = await nftContract.write.approve([getAddress(nftSwap.address), offeredNftId], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: approveHash1 });
+    const approveHash2 = await nftContract.write.approve([getAddress(nftSwap.address), requestedNftId], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: approveHash2 });
+
+    // Confirm
+    const confirmHash = await nftSwap.write.confirmTrade([0], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: confirmHash });
+    const confirmHash2 = await nftSwap.write.confirmTrade([0], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: confirmHash2 });
+
+    let trade = (await nftSwap.read.getTrade([0])) as Trade;
+    expect(trade.status).to.equal(TradeStatus.Confirmed);
+
+    // Check if the wallet has the NFT
+    const newOwnerOfferedNft = await nftContract.read.ownerOf([offeredNftId]);
+    const newOwnerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+
+    expect(newOwnerOfferedNft).to.equal(getAddress(to.account.address));
+    expect(newOwnerRequestedNft).to.equal(getAddress(from.account.address));
   });
 });

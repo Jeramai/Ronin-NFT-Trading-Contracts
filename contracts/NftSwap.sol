@@ -100,6 +100,14 @@ contract NftSwap {
         IERC721 fromNft = IERC721(_fromNftContract);
         require(fromNft.ownerOf(_fromNftId) == msg.sender, "You do not own this NFT");
 
+        // Check for requested NFT ownership
+        IERC721 toNft = IERC721(_toNftContract);
+        try toNft.ownerOf(_toNftId) returns (address owner) {
+            require(owner == _toAddress, "Requested NFT is not owned by target address");
+        } catch {
+            revert("Requested NFT does not exist");
+        }
+
         Trade memory newTrade = Trade({
             fromAddress: msg.sender,
             fromNftContract: _fromNftContract,
@@ -133,6 +141,18 @@ contract NftSwap {
             "Not authorized to agree to this trade"
         );
 
+        // Add ownership verification before agreeing
+        IERC721 fromNft = IERC721(trade.fromNftContract);
+        IERC721 toNft = IERC721(trade.toNftContract);
+        
+        // If ownership has changed, automatically cancel the trade
+        if (fromNft.ownerOf(trade.fromNftId) != trade.fromAddress ||
+            toNft.ownerOf(trade.toNftId) != trade.toAddress) {
+            trade.status = TradeStatus.Cancelled;
+            emit TradeCancelled(_tradeId);
+            revert("Trade cancelled - NFT ownership changed");
+        }
+
         if (msg.sender == trade.fromAddress) {
             require(!trade.fromHasAgreed, "Already agreed to this trade");
             trade.fromHasAgreed = true;
@@ -158,21 +178,32 @@ contract NftSwap {
             "Not authorized to confirm to this trade"
         );
 
+        // Add ownership verification before confirming
+        IERC721 fromNft = IERC721(trade.fromNftContract);
+        IERC721 toNft = IERC721(trade.toNftContract);
+        
+        // If ownership has changed, automatically cancel the trade
+        if (fromNft.ownerOf(trade.fromNftId) != trade.fromAddress ||
+            toNft.ownerOf(trade.toNftId) != trade.toAddress) {
+            trade.status = TradeStatus.Cancelled;
+            emit TradeCancelled(_tradeId);
+            revert("Trade cancelled - NFT ownership changed");
+        }
+        
+        // Ownership check condition
         if(msg.sender == trade.fromAddress){
-            IERC721 fromNft = IERC721(trade.fromNftContract);
             require(
                 fromNft.isApprovedForAll(trade.fromAddress, address(this)) ||
                 fromNft.getApproved(trade.fromNftId) == address(this),
                 "Contract not approved to transfer NFT"
             );
-        }else if(msg.sender == trade.fromAddress){
-            IERC721 toNft = IERC721(trade.toNftContract);
+        } else { 
             require(
                 toNft.isApprovedForAll(trade.toAddress, address(this)) ||
                 toNft.getApproved(trade.toNftId) == address(this),
                 "Contract not approved to transfer NFT"
             );
-        } 
+        }
 
         if (msg.sender == trade.fromAddress) {
             require(!trade.fromHasConfirmed, "Already confirmed this trade");
@@ -191,6 +222,28 @@ contract NftSwap {
             // Execute the trade
             executeTrade(_tradeId);
         }
+    }
+    function cancelTrade(uint256 _tradeId) external {
+        require(_tradeId < trades.length, "Trade does not exist");
+        Trade storage trade = trades[_tradeId];
+        
+        // Only allow cancellation if trade is in Proposed or Agreed state
+        require(
+            trade.status == TradeStatus.Proposed || trade.status == TradeStatus.Agreed,
+            "Trade can only be cancelled in Proposed or Agreed state"
+        );
+        
+        // Only allow the participants to cancel the trade
+        require(
+            msg.sender == trade.fromAddress || msg.sender == trade.toAddress,
+            "Not authorized to cancel this trade"
+        );
+
+        // Update the trade status to Cancelled
+        trade.status = TradeStatus.Cancelled;
+        
+        // Emit the cancellation event
+        emit TradeCancelled(_tradeId);
     }
     
     function getTrade(uint256 _tradeId) public view returns (Trade memory) {

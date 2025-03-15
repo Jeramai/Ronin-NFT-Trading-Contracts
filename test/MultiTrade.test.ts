@@ -27,7 +27,7 @@ type Trade = {
   status: TradeStatus;
 };
 
-describe('NftSwap', function () {
+describe('Multi trade', function () {
   let publicClient: PublicClient;
   let walletClientOwner: WalletClient;
   let from: any;
@@ -105,6 +105,37 @@ describe('NftSwap', function () {
     expect(ownerRequestedNft).to.equal(getAddress(to.account.address));
   });
 
-  it('Should allow a user to participate in multiple trades');
-  it('Should allow trading different NFTs from the same collection');
+  it('Should allow a user to participate in multiple trades', async function () {
+    // Arrange: Propose two trades involving the 'from' user
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+    const proposeHash1 = await nftSwap.write.proposeTrade(
+      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+    await publicClient.waitForTransactionReceipt({ hash: proposeHash1 });
+
+    // Mint a new NFT for the second trade
+    const newOfferedNftId = 3;
+    await nftContract.write.mint([from.account.address, newOfferedNftId]);
+    const ownerNewOfferedNft = await nftContract.read.ownerOf([newOfferedNftId]);
+    expect(ownerNewOfferedNft).to.equal(getAddress(from.account.address));
+
+    const proposeHash2 = await nftSwap.write.proposeTrade(
+      [getAddress(nftContract.address), newOfferedNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+    await publicClient.waitForTransactionReceipt({ hash: proposeHash2 });
+
+    // Act: 'to' user agrees to both trades
+    const agreeHash1 = await nftSwap.write.agreeTrade([0], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHash1 });
+    const agreeHash2 = await nftSwap.write.agreeTrade([1], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHash2 });
+
+    // Assert: Both trades are in the Agreed state
+    let trade = (await nftSwap.read.getTrade([0])) as Trade;
+    expect(trade.status).to.equal(TradeStatus.Proposed);
+    trade = (await nftSwap.read.getTrade([1])) as Trade;
+    expect(trade.status).to.equal(TradeStatus.Proposed);
+  });
 });

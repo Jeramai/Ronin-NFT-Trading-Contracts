@@ -27,7 +27,7 @@ type Trade = {
   status: TradeStatus;
 };
 
-describe('NftSwap', function () {
+describe('Validation', function () {
   let publicClient: PublicClient;
   let walletClientOwner: WalletClient;
   let from: any;

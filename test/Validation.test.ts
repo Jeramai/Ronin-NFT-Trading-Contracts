@@ -105,7 +105,62 @@ describe('Validation', function () {
     expect(ownerRequestedNft).to.equal(getAddress(to.account.address));
   });
 
-  it('Should validate NFT contract addresses are valid');
-  it('Should validate NFT tokens exist');
-  it('Should handle NFT approval revocation correctly');
+  it('Should validate NFT contract addresses are valid', async function () {
+    // Arrange: Use an invalid contract address (zero address)
+    const invalidContractAddress = getAddress('0x0000000000000000000000000000000000000000');
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+
+    // Act: Attempt to propose a trade with the invalid contract address
+    const proposeTradeCall = nftSwap.write.proposeTrade(
+      [invalidContractAddress, offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+
+    // Assert: The transaction should be rejected
+    await expect(proposeTradeCall).to.be.rejected;
+  });
+  it('Should validate NFT tokens exist', async function () {
+    // Arrange: Use a non-existent NFT ID
+    const nonExistentNftId = 999;
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+
+    // Act: Attempt to propose a trade with the non-existent NFT ID
+    const proposeTradeCall = nftSwap.write.proposeTrade(
+      [getAddress(nftContract.address), nonExistentNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+
+    // Assert: The transaction should be rejected with the correct error message
+    await expect(proposeTradeCall).to.be.rejectedWith('Requested NFT does not exist');
+  });
+  it('Should handle NFT approval revocation correctly', async function () {
+    // Arrange: Propose and agree to a trade
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+    const proposeHash = await nftSwap.write.proposeTrade(
+      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+    await publicClient.waitForTransactionReceipt({ hash: proposeHash });
+
+    const agreeHashFrom = await nftSwap.write.agreeTrade([0], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHashFrom });
+    const agreeHashTo = await nftSwap.write.agreeTrade([0], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHashTo });
+
+    // Approve the contract to transfer the NFT
+    const approveHash = await nftContract.write.approve([getAddress(nftSwap.address), offeredNftId], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: approveHash });
+
+    // Revoke the approval by setting it to zero address
+    const revokeHash = await nftContract.write.approve([getAddress('0x0000000000000000000000000000000000000000'), offeredNftId], {
+      account: from.account
+    });
+    await publicClient.waitForTransactionReceipt({ hash: revokeHash });
+
+    // Act: Attempt to confirm the trade
+    const confirmTradeCall = nftSwap.write.confirmTrade([0], { account: from.account });
+
+    // Assert: The transaction should be rejected with the correct error message
+    await expect(confirmTradeCall).to.be.rejectedWith('Contract not approved to transfer NFT');
+  });
 });

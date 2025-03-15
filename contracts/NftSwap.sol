@@ -96,9 +96,13 @@ contract NftSwap {
     ) external returns (uint256) {
         require(_toAddress != msg.sender, "Cannot trade with yourself");
         
-        // Verify ownership using IERC721 interface
+        // Check NFT ownership self
         IERC721 fromNft = IERC721(_fromNftContract);
-        require(fromNft.ownerOf(_fromNftId) == msg.sender, "You do not own this NFT");
+        try fromNft.ownerOf(_fromNftId) returns (address owner) {
+            require(owner == msg.sender, "You do not own this NFT");
+        } catch {
+            revert("Requested NFT does not exist");
+        }
 
         // Check for requested NFT ownership
         IERC721 toNft = IERC721(_toNftContract);

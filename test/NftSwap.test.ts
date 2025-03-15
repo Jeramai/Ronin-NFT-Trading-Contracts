@@ -131,10 +131,7 @@ describe('NftSwap', function () {
     expect(trade.toHasConfirmed).to.equal(false);
     expect(trade.status).to.equal(TradeStatus.Proposed);
   });
-  //
-
-  // Get accounts from Hardhat
-  it('Should allow the from of the requested NFT to agree to a trade', async function () {
+  it('Should change status to agreed if both side agree', async function () {
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
     const hash2 = await nftSwap.write.proposeTrade(
       [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
@@ -160,5 +157,44 @@ describe('NftSwap', function () {
     expect(tradeTo.status).to.equal(TradeStatus.Agreed);
     expect(tradeTo.fromHasAgreed).to.equal(true);
     expect(tradeTo.toHasAgreed).to.equal(true);
+  });
+  it('Should change status to confirmed if both sides confirm', async function () {
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+    const hash2 = await nftSwap.write.proposeTrade(
+      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+
+    await publicClient.waitForTransactionReceipt({ hash: hash2 });
+
+    // Have FROM side agree
+    const agreeHash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHash });
+
+    // Have TO side agree
+    const agreeHash2 = await nftSwap.write.agreeTrade([0], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHash2 });
+
+    // Have FROM side confirm
+    const confirmHash = await nftSwap.write.confirmTrade([0], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: confirmHash });
+
+    let trade = (await nftSwap.read.getTrade([0])) as Trade;
+    expect(trade.status).to.equal(TradeStatus.Agreed);
+    expect(trade.fromHasAgreed).to.equal(true);
+    expect(trade.toHasAgreed).to.equal(true);
+    expect(trade.fromHasConfirmed).to.equal(true);
+    expect(trade.toHasConfirmed).to.equal(false);
+
+    // Have TO side confirm
+    const confirmHash2 = await nftSwap.write.confirmTrade([0], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: confirmHash2 });
+
+    trade = (await nftSwap.read.getTrade([0])) as Trade;
+    expect(trade.status).to.equal(TradeStatus.Confirmed);
+    expect(trade.fromHasAgreed).to.equal(true);
+    expect(trade.toHasAgreed).to.equal(true);
+    expect(trade.fromHasConfirmed).to.equal(true);
+    expect(trade.toHasConfirmed).to.equal(true);
   });
 });

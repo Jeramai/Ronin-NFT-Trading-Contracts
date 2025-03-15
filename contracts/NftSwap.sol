@@ -67,8 +67,7 @@ contract NftSwap {
         emit TradeProposed(tradeId);
 
         return tradeId;
-    }   
-
+    }
     function agreeTrade(uint256 _tradeId) external {
         require(_tradeId < trades.length, "Trade does not exist");
         Trade storage trade = trades[_tradeId];
@@ -93,6 +92,31 @@ contract NftSwap {
         }
 
         emit TradeAgreed(_tradeId, msg.sender);
+    }
+    function confirmTrade(uint256 _tradeId) external {
+        require(_tradeId < trades.length, "Trade does not exist");
+        Trade storage trade = trades[_tradeId];
+        
+        require(trade.status == TradeStatus.Agreed, "Trade is not in agreed state");
+        require(
+            msg.sender == trade.fromAddress || msg.sender == trade.toAddress,
+            "Not authorized to confirm to this trade"
+        );
+
+        if (msg.sender == trade.fromAddress) {
+            require(!trade.fromHasConfirmed, "Already confirmed this trade");
+            trade.fromHasConfirmed = true;
+        } else {
+            require(!trade.toHasConfirmed, "Already confirmed this trade");
+            trade.toHasConfirmed = true;
+        }
+
+        // If both parties have confirmed, update status
+        if (trade.fromHasConfirmed && trade.toHasConfirmed) {
+            trade.status = TradeStatus.Confirmed;
+        }
+
+        emit TradeConfirmed(_tradeId, msg.sender);
     }
 
     

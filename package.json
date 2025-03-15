@@ -1,8 +1,13 @@
 {
   "name": "ronin-nft-trading-contracts",
+  "scripts": {
+    "deploy": "bun hardhat deploy --network saigon --gasprice 21000000000",
+    "deploy-prod": "bun hardhat deploy --network ronin --gasprice 21000000000"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
-    "hardhat": "^2.22.19"
+    "hardhat": "^2.22.19",
+    "hardhat-deploy": "^1.0.1"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.2.0"

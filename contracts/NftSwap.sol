@@ -175,7 +175,7 @@ contract NftSwap {
         require(trade.status == TradeStatus.Agreed, "Trade is not in agreed state");
         require(
             msg.sender == trade.fromAddress || msg.sender == trade.toAddress,
-            "Not authorized to confirm to this trade"
+            "Not authorized to confirm this trade"
         );
 
         // Add ownership verification before confirming

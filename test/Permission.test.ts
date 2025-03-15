@@ -32,6 +32,7 @@ describe('Permission', function () {
   let walletClientOwner: WalletClient;
   let from: any;
   let to: any;
+  let thirdParty: any;
   let nftContract: any;
   let nftSwap: any;
 
@@ -46,7 +47,7 @@ describe('Permission', function () {
     });
 
     // Get accounts from Hardhat
-    [from, to] = await hre.viem.getWalletClients();
+    [from, to, thirdParty] = await hre.viem.getWalletClients();
 
     // Create wallet clients
     walletClientOwner = createWalletClient({
@@ -105,7 +106,55 @@ describe('Permission', function () {
     expect(ownerRequestedNft).to.equal(getAddress(to.account.address));
   });
 
-  it('Should not allow non-participants to agree to a trade');
-  it('Should not allow non-participants to confirm a trade');
-  it('Should not allow non-participants to cancel a trade');
+  it('Should not allow non-participants to agree to a trade', async function () {
+    // Arrange: Propose a trade between 'from' and 'to'
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+    const proposeHash = await nftSwap.write.proposeTrade(
+      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+    await publicClient.waitForTransactionReceipt({ hash: proposeHash });
+
+    // Act: 'thirdParty' attempts to agree to the trade
+    const agreeTradeCall = nftSwap.write.agreeTrade([0], { account: thirdParty.account });
+
+    // Assert: The transaction should be rejected with the correct error message
+    await expect(agreeTradeCall).to.be.rejectedWith('Not authorized to agree to this trade');
+  });
+  it('Should not allow non-participants to confirm a trade', async function () {
+    // Arrange: Propose a trade between 'from' and 'to'
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+    const proposeHash = await nftSwap.write.proposeTrade(
+      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+    await publicClient.waitForTransactionReceipt({ hash: proposeHash });
+
+    // Agree
+    const agreeHash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHash });
+    const agreeHash2 = await nftSwap.write.agreeTrade([0], { account: to.account });
+    await publicClient.waitForTransactionReceipt({ hash: agreeHash2 });
+
+    // Act: 'thirdParty' attempts to agree to the trade
+    const agreeTradeCall = nftSwap.write.confirmTrade([0], { account: thirdParty.account });
+
+    // Assert: The transaction should be rejected with the correct error message
+    await expect(agreeTradeCall).to.be.rejectedWith('Not authorized to confirm this trade');
+  });
+  it('Should not allow non-participants to cancel a trade', async function () {
+    // Arrange: Propose a trade between 'from' and 'to'
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+    const proposeHash = await nftSwap.write.proposeTrade(
+      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+      { account: from.account }
+    );
+    await publicClient.waitForTransactionReceipt({ hash: proposeHash });
+
+    // Act: 'thirdParty' attempts to agree to the trade
+    const agreeTradeCall = nftSwap.write.cancelTrade([0], { account: thirdParty.account });
+
+    // Assert: The transaction should be rejected with the correct error message
+    await expect(agreeTradeCall).to.be.rejectedWith('Not authorized to cancel this trade');
+  });
 });

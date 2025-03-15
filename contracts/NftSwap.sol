@@ -88,43 +88,23 @@ contract NftSwap {
     }
 
     function proposeTrade(
-        address _fromNftContract,
-        uint256 _fromNftId,
-        address _toNftContract,
-        uint256 _toNftId,
         address _toAddress
     ) external returns (uint256) {
-        require(_toAddress != msg.sender, "Cannot trade with yourself");
-        
-        // Check NFT ownership self
-        IERC721 fromNft = IERC721(_fromNftContract);
-        try fromNft.ownerOf(_fromNftId) returns (address owner) {
-            require(owner == msg.sender, "You do not own this NFT");
-        } catch {
-            revert("Requested NFT does not exist");
-        }
-
-        // Check for requested NFT ownership
-        IERC721 toNft = IERC721(_toNftContract);
-        try toNft.ownerOf(_toNftId) returns (address owner) {
-            require(owner == _toAddress, "Requested NFT is not owned by target address");
-        } catch {
-            revert("Requested NFT does not exist");
-        }
+        require(_toAddress != msg.sender, "Cannot trade with yourself"); 
 
         Trade memory newTrade = Trade({
-            fromAddress: msg.sender,
-            fromNftContract: _fromNftContract,
-            fromNftId: _fromNftId,
+            fromAddress: msg.sender, 
+            fromNftContract: address(0),
+            fromNftId: 0,
             fromHasAgreed: false,
             fromHasConfirmed: false,
-            
-            toAddress: _toAddress,
-            toNftContract: _toNftContract,
-            toNftId: _toNftId,
+
+            toAddress: _toAddress, 
+            toNftContract: address(0),
+            toNftId: 0,
             toHasAgreed: false,
             toHasConfirmed: false,
-            
+
             status: TradeStatus.Proposed
         });
 
@@ -135,7 +115,11 @@ contract NftSwap {
 
         return tradeId;
     }
-    function agreeTrade(uint256 _tradeId) external {
+    function agreeTrade(uint256 _tradeId,
+        address _fromNftContract,
+        uint256 _fromNftId,
+        address _toNftContract,
+        uint256 _toNftId) external {
         require(_tradeId < trades.length, "Trade does not exist");
         Trade storage trade = trades[_tradeId];
         
@@ -145,18 +129,7 @@ contract NftSwap {
             "Not authorized to agree to this trade"
         );
 
-        // Add ownership verification before agreeing
-        IERC721 fromNft = IERC721(trade.fromNftContract);
-        IERC721 toNft = IERC721(trade.toNftContract);
-        
-        // If ownership has changed, automatically cancel the trade
-        if (fromNft.ownerOf(trade.fromNftId) != trade.fromAddress ||
-            toNft.ownerOf(trade.toNftId) != trade.toAddress) {
-            trade.status = TradeStatus.Cancelled;
-            emit TradeCancelled(_tradeId);
-            revert("Trade cancelled - NFT ownership changed");
-        }
-
+        // Only agree once
         if (msg.sender == trade.fromAddress) {
             require(!trade.fromHasAgreed, "Already agreed to this trade");
             trade.fromHasAgreed = true;
@@ -164,9 +137,31 @@ contract NftSwap {
             require(!trade.toHasAgreed, "Already agreed to this trade");
             trade.toHasAgreed = true;
         }
+        
+        // Check NFT ownership self
+        IERC721 fromNft = IERC721(_fromNftContract);
+        try fromNft.ownerOf(_fromNftId) returns (address owner) { 
+            require(owner == trade.fromAddress, "You do not own this NFT");
+        } catch {
+            revert("Requested NFT does not exist");
+        }
 
-        // If both parties have agreed, update status
-        if (trade.fromHasAgreed && trade.toHasAgreed) {
+        // Check for requested NFT ownership
+        IERC721 toNft = IERC721(_toNftContract); 
+        try toNft.ownerOf(_toNftId) returns (address owner) {
+            require(owner == trade.toAddress, "Requested NFT is not owned by target address");
+        } catch {
+            revert("Requested NFT does not exist");
+        } 
+
+        // If both parties have agreed, update
+        if (trade.fromHasAgreed && trade.toHasAgreed) { 
+            trade.fromNftContract = _fromNftContract; 
+            trade.fromNftId = _fromNftId; 
+            
+            trade.toNftContract = _toNftContract;
+            trade.toNftId = _toNftId;
+
             trade.status = TradeStatus.Agreed;
         }
 

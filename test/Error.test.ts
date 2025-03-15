@@ -108,36 +108,41 @@ describe('Error', function () {
   it('Should not allow proposing a trade to self', async function () {
     const _requestedNftId = offeredNftId;
     const ownerRequestedNft = await nftContract.read.ownerOf([_requestedNftId]);
-    const trade = nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), _requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
 
+    const trade = nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
     await expect(trade).to.be.rejectedWith('Cannot trade with yourself');
   });
   it('Should not allow proposing a trade for an NFT the user does not own', async function () {
     const notOwnedNftId = 2;
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const trade = nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), notOwnedNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
+    await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
+
+    // Have both side agree
+    const tradeFrom = nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), notOwnedNftId],
       { account: from.account }
     );
+    const tradeTo = nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), notOwnedNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
 
-    await expect(trade).to.be.rejectedWith('You do not own this NFT');
+    await expect(tradeFrom).to.be.fulfilled;
+    await expect(tradeTo).to.be.rejectedWith('You do not own this NFT');
   });
   it('Should not allow agreeing to a non-existent trade', async function () {
     const nonExistentTradeId = 999; // Assuming this trade ID will not exist
-    const trade = nftSwap.write.agreeTrade([nonExistentTradeId], { account: from.account });
+    const trade = nftSwap.write.agreeTrade(
+      [nonExistentTradeId, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: from.account }
+    );
 
     await expect(trade).to.be.rejectedWith('Trade does not exist');
   });
   it('Should not allow confirming without first agreeing', async function () {
     // Arrange: Propose a trade
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const proposeHash = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const proposeHash = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
     await publicClient.waitForTransactionReceipt({ hash: proposeHash });
 
     // Act: Attempt to confirm the trade without agreeing
@@ -149,15 +154,18 @@ describe('Error', function () {
   it('Should not allow confirming without NFT approval', async function () {
     // Arrange: Propose and agree to a trade
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const proposeHash = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const proposeHash = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
     await publicClient.waitForTransactionReceipt({ hash: proposeHash });
 
-    const agreeHashFrom = await nftSwap.write.agreeTrade([0], { account: from.account });
+    const agreeHashFrom = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: from.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash: agreeHashFrom });
-    const agreeHashTo = await nftSwap.write.agreeTrade([0], { account: to.account });
+    const agreeHashTo = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash: agreeHashTo });
 
     // Act: Attempt to confirm the trade without NFT approval

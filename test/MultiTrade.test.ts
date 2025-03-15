@@ -108,10 +108,7 @@ describe('Multi trade', function () {
   it('Should allow a user to participate in multiple trades', async function () {
     // Arrange: Propose two trades involving the 'from' user
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const proposeHash1 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const proposeHash1 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
     await publicClient.waitForTransactionReceipt({ hash: proposeHash1 });
 
     // Mint a new NFT for the second trade
@@ -120,16 +117,19 @@ describe('Multi trade', function () {
     const ownerNewOfferedNft = await nftContract.read.ownerOf([newOfferedNftId]);
     expect(ownerNewOfferedNft).to.equal(getAddress(from.account.address));
 
-    const proposeHash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), newOfferedNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const proposeHash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
     await publicClient.waitForTransactionReceipt({ hash: proposeHash2 });
 
     // Act: 'to' user agrees to both trades
-    const agreeHash1 = await nftSwap.write.agreeTrade([0], { account: to.account });
+    const agreeHash1 = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash: agreeHash1 });
-    const agreeHash2 = await nftSwap.write.agreeTrade([1], { account: to.account });
+    const agreeHash2 = await nftSwap.write.agreeTrade(
+      [1, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash: agreeHash2 });
 
     // Assert: Both trades are in the Agreed state

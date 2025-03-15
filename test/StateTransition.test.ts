@@ -108,10 +108,7 @@ describe('State Transition', function () {
   it('FROM should allow cancelling a proposed trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });
@@ -126,10 +123,7 @@ describe('State Transition', function () {
   it('TO should allow cancelling a proposed trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });
@@ -144,15 +138,15 @@ describe('State Transition', function () {
   it('FROM should allow cancelling an agreed trade before confirmation', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    let hash = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    let hash = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash });
 
-    hash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: from.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
     hash = await nftSwap.write.cancelTrade([0], { account: from.account });
@@ -165,15 +159,15 @@ describe('State Transition', function () {
   it('TO should allow cancelling an agreed trade before confirmation', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    let hash = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    let hash = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash });
 
-    hash = await nftSwap.write.agreeTrade([0], { account: to.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
     hash = await nftSwap.write.cancelTrade([0], { account: to.account });
@@ -186,18 +180,21 @@ describe('State Transition', function () {
   it('FROM should allow cancelling an partly confirmed trade before confirmation', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    let hash = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    let hash = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash });
 
-    hash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: from.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
-    hash = await nftSwap.write.agreeTrade([0], { account: to.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
     // NFT Approval
@@ -218,18 +215,21 @@ describe('State Transition', function () {
   it('TO should allow cancelling an partly confirmed trade before confirmation', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    let hash = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    let hash = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash });
 
-    hash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: from.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
-    hash = await nftSwap.write.agreeTrade([0], { account: to.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
     // NFT Approval
@@ -251,10 +251,7 @@ describe('State Transition', function () {
   it('Should not allow agreeing to a cancelled trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });
@@ -262,7 +259,10 @@ describe('State Transition', function () {
     const hash = await nftSwap.write.cancelTrade([0], { account: from.account });
     await publicClient.waitForTransactionReceipt({ hash });
 
-    const trade = nftSwap.write.agreeTrade([0], { account: to.account });
+    const trade = nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
 
     // Test
     await expect(trade).to.be.rejectedWith('Trade is not in proposed state');
@@ -270,22 +270,28 @@ describe('State Transition', function () {
   it('Should not allow agreeing an already agreed trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });
 
     // Agree
-    let hash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    let hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: from.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
-    hash = await nftSwap.write.agreeTrade([0], { account: to.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
     // Agree again
-    const trade = nftSwap.write.agreeTrade([0], { account: to.account });
+    const trade = nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
 
     // Test
     await expect(trade).to.be.rejectedWith('Trade is not in proposed state');
@@ -293,18 +299,21 @@ describe('State Transition', function () {
   it('Should not allow agreeing an already confirmed trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });
 
     // Agree
-    let hash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    let hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: from.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
-    hash = await nftSwap.write.agreeTrade([0], { account: to.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
     // NFT Approval
@@ -320,7 +329,10 @@ describe('State Transition', function () {
     await publicClient.waitForTransactionReceipt({ hash });
 
     // Agree again
-    const trade = nftSwap.write.agreeTrade([0], { account: to.account });
+    const trade = nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
 
     // Test
     await expect(trade).to.be.rejectedWith('Trade is not in proposed state');
@@ -328,10 +340,7 @@ describe('State Transition', function () {
   it('Should not allow confirming a cancelled trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });
@@ -347,10 +356,7 @@ describe('State Transition', function () {
   it('Should not allow confirming a proposed trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });
@@ -363,18 +369,21 @@ describe('State Transition', function () {
   it('Should not allow confirming an already confirmed trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });
 
     // Agree
-    let hash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    let hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: from.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
-    hash = await nftSwap.write.agreeTrade([0], { account: to.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
     // NFT Approval
@@ -398,18 +407,21 @@ describe('State Transition', function () {
   it('Should not allow cancelling a confirmed trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });
 
     // Agree
-    let hash = await nftSwap.write.agreeTrade([0], { account: from.account });
+    let hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: from.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
-    hash = await nftSwap.write.agreeTrade([0], { account: to.account });
+    hash = await nftSwap.write.agreeTrade(
+      [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
+      { account: to.account }
+    );
     await publicClient.waitForTransactionReceipt({ hash });
 
     // NFT Approval
@@ -433,10 +445,7 @@ describe('State Transition', function () {
   it('Should not allow cancelling a canceled trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const hash2 = await nftSwap.write.proposeTrade(
-      [getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId, ownerRequestedNft],
-      { account: from.account }
-    );
+    const hash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
 
     // Assert
     await publicClient.waitForTransactionReceipt({ hash: hash2 });

@@ -105,6 +105,7 @@ describe('NftSwap', function () {
     expect(ownerRequestedNft).to.equal(getAddress(to.account.address));
   });
 
+  // Normal workflow
   it('Should allow a user to propose a trade', async function () {
     // Act
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);

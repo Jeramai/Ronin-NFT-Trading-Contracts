@@ -71,11 +71,20 @@ contract NftSwap {
             "Receiver no longer owns the requested NFT"
         );
 
-        // Execute the transfers
-        fromNft.transferFrom(trade.fromAddress, trade.toAddress, trade.fromNftId);
-        toNft.transferFrom(trade.toAddress, trade.fromAddress, trade.toNftId);
-        
-        emit TradeCompleted(_tradeId);
+        // Execute the transfers using a try-catch to handle potential transfer failures
+        try fromNft.transferFrom(trade.fromAddress, trade.toAddress, trade.fromNftId) {
+            try toNft.transferFrom(trade.toAddress, trade.fromAddress, trade.toNftId) {
+                // Both transfers successful
+                emit TradeCompleted(_tradeId);
+                return;
+            } catch {
+                // If second transfer fails, revert first transfer
+                fromNft.transferFrom(trade.toAddress, trade.fromAddress, trade.fromNftId);
+                revert("Second NFT transfer failed");
+            }
+        } catch {
+            revert("First NFT transfer failed");
+        }
     }
 
     function proposeTrade(
@@ -87,6 +96,10 @@ contract NftSwap {
     ) external returns (uint256) {
         require(_toAddress != msg.sender, "Cannot trade with yourself");
         
+        // Verify ownership using IERC721 interface
+        IERC721 fromNft = IERC721(_fromNftContract);
+        require(fromNft.ownerOf(_fromNftId) == msg.sender, "You do not own this NFT");
+
         Trade memory newTrade = Trade({
             fromAddress: msg.sender,
             fromNftContract: _fromNftContract,
@@ -145,6 +158,22 @@ contract NftSwap {
             "Not authorized to confirm to this trade"
         );
 
+        if(msg.sender == trade.fromAddress){
+            IERC721 fromNft = IERC721(trade.fromNftContract);
+            require(
+                fromNft.isApprovedForAll(trade.fromAddress, address(this)) ||
+                fromNft.getApproved(trade.fromNftId) == address(this),
+                "Contract not approved to transfer NFT"
+            );
+        }else if(msg.sender == trade.fromAddress){
+            IERC721 toNft = IERC721(trade.toNftContract);
+            require(
+                toNft.isApprovedForAll(trade.toAddress, address(this)) ||
+                toNft.getApproved(trade.toNftId) == address(this),
+                "Contract not approved to transfer NFT"
+            );
+        } 
+
         if (msg.sender == trade.fromAddress) {
             require(!trade.fromHasConfirmed, "Already confirmed this trade");
             trade.fromHasConfirmed = true;
@@ -163,8 +192,6 @@ contract NftSwap {
             executeTrade(_tradeId);
         }
     }
-
-
     
     function getTrade(uint256 _tradeId) public view returns (Trade memory) {
         return trades[_tradeId];

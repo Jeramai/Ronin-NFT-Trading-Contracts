@@ -121,7 +121,7 @@ contract NftSwap {
     function proposeTrade(
         address _fromAddress,
         address _toAddress
-    ) external onlyOwner returns (uint256)  {
+    ) external onlyOwner returns (uint256 tradeId)  {
         require(_fromAddress != _toAddress, "Cannot trade with yourself"); 
         require(_fromAddress != owner && _toAddress != owner, "Cannot trade with contract owner"); 
 
@@ -144,7 +144,7 @@ contract NftSwap {
 
         trades.push(newTrade);
         
-        uint256 tradeId = trades.length - 1;
+        tradeId = trades.length - 1;
         emit TradeProposed(tradeId);
 
         return tradeId;
@@ -153,7 +153,9 @@ contract NftSwap {
         address _fromNftContract,
         uint256 _fromNftId,
         address _toNftContract,
-        uint256 _toNftId) external tradeNotExpired(_tradeId) { 
+        uint256 _toNftId) external payable tradeNotExpired(_tradeId) { 
+        payable(owner).transfer(msg.value);
+
         Trade storage trade = trades[_tradeId];
         
         require(trade.status == TradeStatus.Proposed, "Trade is not in proposed state");
@@ -200,7 +202,9 @@ contract NftSwap {
 
         emit TradeAgreed(_tradeId, msg.sender);
     }
-    function confirmTrade(uint256 _tradeId) external tradeNotExpired(_tradeId) { 
+    function confirmTrade(uint256 _tradeId) external payable tradeNotExpired(_tradeId) { 
+        payable(owner).transfer(msg.value);
+
         Trade storage trade = trades[_tradeId];
         
         require(trade.status == TradeStatus.Agreed, "Trade is not in agreed state");

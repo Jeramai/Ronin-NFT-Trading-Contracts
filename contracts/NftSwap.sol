@@ -24,17 +24,47 @@ contract NftSwap {
         bool toHasAgreed;
         bool toHasConfirmed;
 
+        uint256 createdAt;
         TradeStatus status;
     }
 
     Trade[] public trades;
+    address private immutable owner;
+    uint256 private constant TRADE_TIMEOUT = 1 hours;
 
+    // Events
     event TradeProposed(uint256 tradeId);
     event TradeAgreed(uint256 tradeId, address user);
     event TradeConfirmed(uint256 tradeId, address user);
     event TradeCompleted(uint256 tradeId);
     event TradeCancelled(uint256 tradeId);
+
+    // Constructor
+    constructor() {
+        owner = msg.sender;
+    }
+
+    // Modifiers
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can perform this action");
+        _;
+    }
+    modifier tradeNotExpired(uint256 _tradeId) {
+        require(_tradeId < trades.length, "Trade does not exist");
+        
+        Trade storage trade = trades[_tradeId];
+        
+        if (block.timestamp > trade.createdAt + TRADE_TIMEOUT && 
+            (trade.status == TradeStatus.Proposed || trade.status == TradeStatus.Agreed)) {
+            trade.status = TradeStatus.Cancelled;
+
+            emit TradeCancelled(_tradeId);
+            revert("Trade has expired");
+        }
+        _;
+    }
     
+    // Internal
     function executeTrade(uint256 _tradeId) internal {
         require(_tradeId < trades.length, "Trade does not exist");
         Trade storage trade = trades[_tradeId];
@@ -87,13 +117,16 @@ contract NftSwap {
         }
     }
 
+    // External
     function proposeTrade(
+        address _fromAddress,
         address _toAddress
-    ) external returns (uint256) {
-        require(_toAddress != msg.sender, "Cannot trade with yourself"); 
+    ) external onlyOwner returns (uint256)  {
+        require(_fromAddress != _toAddress, "Cannot trade with yourself"); 
+        require(_fromAddress != owner && _toAddress != owner, "Cannot trade with contract owner"); 
 
         Trade memory newTrade = Trade({
-            fromAddress: msg.sender, 
+            fromAddress: _fromAddress, 
             fromNftContract: address(0),
             fromNftId: 0,
             fromHasAgreed: false,
@@ -105,6 +138,7 @@ contract NftSwap {
             toHasAgreed: false,
             toHasConfirmed: false,
 
+            createdAt: block.timestamp,
             status: TradeStatus.Proposed
         });
 
@@ -119,8 +153,7 @@ contract NftSwap {
         address _fromNftContract,
         uint256 _fromNftId,
         address _toNftContract,
-        uint256 _toNftId) external {
-        require(_tradeId < trades.length, "Trade does not exist");
+        uint256 _toNftId) external tradeNotExpired(_tradeId) { 
         Trade storage trade = trades[_tradeId];
         
         require(trade.status == TradeStatus.Proposed, "Trade is not in proposed state");
@@ -140,16 +173,16 @@ contract NftSwap {
         
         // Check NFT ownership self
         IERC721 fromNft = IERC721(_fromNftContract);
-        try fromNft.ownerOf(_fromNftId) returns (address owner) { 
-            require(owner == trade.fromAddress, "You do not own this NFT");
+        try fromNft.ownerOf(_fromNftId) returns (address _owner) { 
+            require(_owner == trade.fromAddress, "You do not own this NFT");
         } catch {
             revert("Requested NFT does not exist");
         }
 
         // Check for requested NFT ownership
         IERC721 toNft = IERC721(_toNftContract); 
-        try toNft.ownerOf(_toNftId) returns (address owner) {
-            require(owner == trade.toAddress, "Requested NFT is not owned by target address");
+        try toNft.ownerOf(_toNftId) returns (address _owner) {
+            require(_owner == trade.toAddress, "Requested NFT is not owned by target address");
         } catch {
             revert("Requested NFT does not exist");
         } 
@@ -167,8 +200,7 @@ contract NftSwap {
 
         emit TradeAgreed(_tradeId, msg.sender);
     }
-    function confirmTrade(uint256 _tradeId) external {
-        require(_tradeId < trades.length, "Trade does not exist");
+    function confirmTrade(uint256 _tradeId) external tradeNotExpired(_tradeId) { 
         Trade storage trade = trades[_tradeId];
         
         require(trade.status == TradeStatus.Agreed, "Trade is not in agreed state");
@@ -222,29 +254,8 @@ contract NftSwap {
             executeTrade(_tradeId);
         }
     }
-    function cancelTrade(uint256 _tradeId) external {
-        require(_tradeId < trades.length, "Trade does not exist");
-        Trade storage trade = trades[_tradeId];
-        
-        // Only allow cancellation if trade is in Proposed or Agreed state
-        require(
-            trade.status == TradeStatus.Proposed || trade.status == TradeStatus.Agreed,
-            "Trade can only be cancelled in Proposed or Agreed state"
-        );
-        
-        // Only allow the participants to cancel the trade
-        require(
-            msg.sender == trade.fromAddress || msg.sender == trade.toAddress,
-            "Not authorized to cancel this trade"
-        );
-
-        // Update the trade status to Cancelled
-        trade.status = TradeStatus.Cancelled;
-        
-        // Emit the cancellation event
-        emit TradeCancelled(_tradeId);
-    }
     
+    // Helper
     function getTrade(uint256 _tradeId) public view returns (Trade memory) {
         return trades[_tradeId];
     }

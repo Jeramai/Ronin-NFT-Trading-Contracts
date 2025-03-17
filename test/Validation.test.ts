@@ -30,6 +30,7 @@ type Trade = {
 describe('Validation', function () {
   let publicClient: PublicClient;
   let walletClientOwner: WalletClient;
+  let contractOwner: any;
   let from: any;
   let to: any;
   let nftContract: any;
@@ -46,20 +47,20 @@ describe('Validation', function () {
     });
 
     // Get accounts from Hardhat
-    [from, to] = await hre.viem.getWalletClients();
+    [contractOwner, from, to] = await hre.viem.getWalletClients();
 
     // Create wallet clients
     walletClientOwner = createWalletClient({
       chain: hardhat,
       transport: http(),
-      account: from.account
+      account: contractOwner.account
     });
 
     // Deploy the NFT contract first
     const nftHash = await walletClientOwner.deployContract({
       abi: MockNft.abi,
       bytecode: MockNft.bytecode as Address,
-      account: from.account,
+      account: contractOwner.account,
       chain: hardhat
     });
     const nftReceipt = await publicClient.waitForTransactionReceipt({ hash: nftHash });
@@ -69,7 +70,7 @@ describe('Validation', function () {
     const swapHash = await walletClientOwner.deployContract({
       abi: NftSwap.abi,
       bytecode: NftSwap.bytecode as Address,
-      account: from.account,
+      account: contractOwner.account,
       chain: hardhat
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash: swapHash });
@@ -108,13 +109,14 @@ describe('Validation', function () {
   it('Should validate NFT contract addresses are valid', async function () {
     // Arrange: Use an invalid contract address (zero address)
     const invalidContractAddress = getAddress('0x0000000000000000000000000000000000000000');
+    const ownerOfferedNft = await nftContract.read.ownerOf([offeredNftId]);
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
 
-    // Act: Attempt to propose a trade with the invalid contract address
-    await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
+    let hash = await nftSwap.write.proposeTrade([ownerOfferedNft, ownerRequestedNft]);
+    await publicClient.waitForTransactionReceipt({ hash });
 
     // Have FROM side agree
-    let hash = await nftSwap.write.agreeTrade(
+    hash = await nftSwap.write.agreeTrade(
       [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],
       { account: from.account }
     );
@@ -144,9 +146,11 @@ describe('Validation', function () {
   });
   it('Should handle NFT approval revocation correctly', async function () {
     // Arrange: Propose and agree to a trade
+    const ownerOfferedNft = await nftContract.read.ownerOf([offeredNftId]);
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const proposeHash = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
-    await publicClient.waitForTransactionReceipt({ hash: proposeHash });
+
+    let hash = await nftSwap.write.proposeTrade([ownerOfferedNft, ownerRequestedNft]);
+    await publicClient.waitForTransactionReceipt({ hash });
 
     const agreeHashFrom = await nftSwap.write.agreeTrade(
       [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],

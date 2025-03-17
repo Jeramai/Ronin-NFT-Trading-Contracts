@@ -30,6 +30,7 @@ type Trade = {
 describe('Error', function () {
   let publicClient: PublicClient;
   let walletClientOwner: WalletClient;
+  let contractOwner: any;
   let from: any;
   let to: any;
   let nftContract: any;
@@ -46,20 +47,20 @@ describe('Error', function () {
     });
 
     // Get accounts from Hardhat
-    [from, to] = await hre.viem.getWalletClients();
+    [contractOwner, from, to] = await hre.viem.getWalletClients();
 
     // Create wallet clients
     walletClientOwner = createWalletClient({
       chain: hardhat,
       transport: http(),
-      account: from.account
+      account: contractOwner.account
     });
 
     // Deploy the NFT contract first
     const nftHash = await walletClientOwner.deployContract({
       abi: MockNft.abi,
       bytecode: MockNft.bytecode as Address,
-      account: from.account,
+      account: contractOwner.account,
       chain: hardhat
     });
     const nftReceipt = await publicClient.waitForTransactionReceipt({ hash: nftHash });
@@ -69,7 +70,7 @@ describe('Error', function () {
     const swapHash = await walletClientOwner.deployContract({
       abi: NftSwap.abi,
       bytecode: NftSwap.bytecode as Address,
-      account: from.account,
+      account: contractOwner.account,
       chain: hardhat
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash: swapHash });
@@ -106,16 +107,20 @@ describe('Error', function () {
   });
 
   it('Should not allow proposing a trade to self', async function () {
-    const _requestedNftId = offeredNftId;
-    const ownerRequestedNft = await nftContract.read.ownerOf([_requestedNftId]);
+    const ownerOfferedNft = await nftContract.read.ownerOf([offeredNftId]);
+    const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
+    const trade1 = nftSwap.write.proposeTrade([ownerOfferedNft, ownerOfferedNft]);
+    const trade2 = nftSwap.write.proposeTrade([ownerRequestedNft, ownerRequestedNft]);
 
-    const trade = nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
-    await expect(trade).to.be.rejectedWith('Cannot trade with yourself');
+    await expect(trade1).to.be.rejectedWith('Cannot trade with yourself');
+    await expect(trade2).to.be.rejectedWith('Cannot trade with yourself');
   });
   it('Should not allow proposing a trade for an NFT the user does not own', async function () {
     const notOwnedNftId = 2;
+
+    const ownerOfferedNft = await nftContract.read.ownerOf([offeredNftId]);
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
+    await nftSwap.write.proposeTrade([ownerOfferedNft, ownerRequestedNft]);
 
     // Have both side agree
     const tradeFrom = nftSwap.write.agreeTrade(
@@ -141,9 +146,10 @@ describe('Error', function () {
   });
   it('Should not allow confirming without first agreeing', async function () {
     // Arrange: Propose a trade
+    const ownerOfferedNft = await nftContract.read.ownerOf([offeredNftId]);
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const proposeHash = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
-    await publicClient.waitForTransactionReceipt({ hash: proposeHash });
+    let hash = await nftSwap.write.proposeTrade([ownerOfferedNft, ownerRequestedNft]);
+    await publicClient.waitForTransactionReceipt({ hash });
 
     // Act: Attempt to confirm the trade without agreeing
     const confirmTrade = nftSwap.write.confirmTrade([0], { account: from.account });
@@ -153,9 +159,10 @@ describe('Error', function () {
   });
   it('Should not allow confirming without NFT approval', async function () {
     // Arrange: Propose and agree to a trade
+    const ownerOfferedNft = await nftContract.read.ownerOf([offeredNftId]);
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const proposeHash = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
-    await publicClient.waitForTransactionReceipt({ hash: proposeHash });
+    let hash = await nftSwap.write.proposeTrade([ownerOfferedNft, ownerRequestedNft]);
+    await publicClient.waitForTransactionReceipt({ hash });
 
     const agreeHashFrom = await nftSwap.write.agreeTrade(
       [0, getAddress(nftContract.address), offeredNftId, getAddress(nftContract.address), requestedNftId],

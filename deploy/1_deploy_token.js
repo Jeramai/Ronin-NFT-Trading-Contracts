@@ -1,14 +1,11 @@
-const func = async function (hre) {
-  const { deployments, getNamedAccounts } = hre;
+// deploy/00_deploy_my_contract.js
+module.exports = async ({ getNamedAccounts, deployments }) => {
   const { deploy } = deployments;
-
   const { deployer } = await getNamedAccounts();
-
-  await deploy("NftSwap", {
+  await deploy('NftSwap', {
     from: deployer,
     args: [],
     log: true,
   });
 };
-module.exports = func;
-func.tags = ["NftSwap"];
+module.exports.tags = ['NftSwap'];

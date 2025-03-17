@@ -7,7 +7,8 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
     "hardhat": "^2.22.19",
-    "hardhat-deploy": "^1.0.1"
+    "hardhat-deploy": "^1.0.1",
+    "@openzeppelin/test-helpers": "^0.5.16"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.2.0"

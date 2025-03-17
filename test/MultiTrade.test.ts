@@ -30,6 +30,7 @@ type Trade = {
 describe('Multi trade', function () {
   let publicClient: PublicClient;
   let walletClientOwner: WalletClient;
+  let contractOwner: any;
   let from: any;
   let to: any;
   let nftContract: any;
@@ -46,20 +47,20 @@ describe('Multi trade', function () {
     });
 
     // Get accounts from Hardhat
-    [from, to] = await hre.viem.getWalletClients();
+    [contractOwner, from, to] = await hre.viem.getWalletClients();
 
     // Create wallet clients
     walletClientOwner = createWalletClient({
       chain: hardhat,
       transport: http(),
-      account: from.account
+      account: contractOwner.account
     });
 
     // Deploy the NFT contract first
     const nftHash = await walletClientOwner.deployContract({
       abi: MockNft.abi,
       bytecode: MockNft.bytecode as Address,
-      account: from.account,
+      account: contractOwner.account,
       chain: hardhat
     });
     const nftReceipt = await publicClient.waitForTransactionReceipt({ hash: nftHash });
@@ -69,7 +70,7 @@ describe('Multi trade', function () {
     const swapHash = await walletClientOwner.deployContract({
       abi: NftSwap.abi,
       bytecode: NftSwap.bytecode as Address,
-      account: from.account,
+      account: contractOwner.account,
       chain: hardhat
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash: swapHash });
@@ -107,9 +108,10 @@ describe('Multi trade', function () {
 
   it('Should allow a user to participate in multiple trades', async function () {
     // Arrange: Propose two trades involving the 'from' user
+    const ownerOfferedNft = await nftContract.read.ownerOf([offeredNftId]);
     const ownerRequestedNft = await nftContract.read.ownerOf([requestedNftId]);
-    const proposeHash1 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
-    await publicClient.waitForTransactionReceipt({ hash: proposeHash1 });
+    let hash = await nftSwap.write.proposeTrade([ownerOfferedNft, ownerRequestedNft]);
+    await publicClient.waitForTransactionReceipt({ hash });
 
     // Mint a new NFT for the second trade
     const newOfferedNftId = 3;
@@ -117,8 +119,8 @@ describe('Multi trade', function () {
     const ownerNewOfferedNft = await nftContract.read.ownerOf([newOfferedNftId]);
     expect(ownerNewOfferedNft).to.equal(getAddress(from.account.address));
 
-    const proposeHash2 = await nftSwap.write.proposeTrade([ownerRequestedNft], { account: from.account });
-    await publicClient.waitForTransactionReceipt({ hash: proposeHash2 });
+    hash = await nftSwap.write.proposeTrade([ownerNewOfferedNft, ownerRequestedNft]);
+    await publicClient.waitForTransactionReceipt({ hash });
 
     // Act: 'to' user agrees to both trades
     const agreeHash1 = await nftSwap.write.agreeTrade(
